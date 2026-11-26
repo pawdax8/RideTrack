@@ -63,3 +63,24 @@ fun RouteMap(points: List<RoutePoint>, follow: Boolean, modifier: Modifier = Mod
         if (route.isNotEmpty()) {
             if (follow || route.size < 2) {
                 map.controller.setZoom(17.0)
+                map.controller.setCenter(route.last())
+            } else {
+                map.zoomToBoundingBox(BoundingBox.fromGeoPoints(route), false, 80)
+            }
+        }
+        map.invalidate()
+    }
+
+    Box(modifier = modifier.clipToBounds()) {
+        AndroidView(factory = { map }, modifier = Modifier.matchParentSize())
+        Text(
+            text = "© OpenStreetMap",
+            color = Color.White,
+            fontSize = 10.sp,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .background(Color(0x99000000))
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+        )
+    }
+}
