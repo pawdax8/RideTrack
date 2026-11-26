@@ -15,6 +15,9 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 // Layanan latar depan: perekaman tetap berjalan saat layar mati.
 class RideService : Service() {
@@ -24,11 +27,17 @@ class RideService : Service() {
     private var startElapsed = 0L
     private var anchor: Location? = null
     private var lastFix = 0L
+    private var pausedTotal = 0L
+    private var pauseStart = 0L
 
     private val ticker = object : Runnable {
         override fun run() {
+            if (paused) {
+                handler.postDelayed(this, 1000)
+                return
+            }
             val now = SystemClock.elapsedRealtime()
-            val seconds = (now - startElapsed) / 1000
+            val seconds = (now - startElapsed - pausedTotal) / 1000
             val live = RideState.live
             // Kecepatan dinolkan bila sudah lama tidak ada sinyal.
             val stale = lastFix > 0 && now - lastFix > 5_000
@@ -48,11 +57,14 @@ class RideService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_START) {
-            begin()
-        } else {
-            end()
-            stopSelf()
+        when (intent?.action) {
+            ACTION_START -> begin()
+            ACTION_PAUSE -> pause()
+            ACTION_RESUME -> resume()
+            else -> {
+                end()
+                stopSelf()
+            }
         }
         return START_NOT_STICKY
     }
@@ -68,6 +80,9 @@ class RideService : Service() {
         )
 
         startElapsed = SystemClock.elapsedRealtime()
+        pausedTotal = 0L
+        pauseStart = 0L
+        paused = false
         anchor = null
         lastFix = 0L
         RideState.live = LiveRide(
@@ -99,9 +114,29 @@ class RideService : Service() {
         handler.postDelayed(ticker, 1000)
     }
 
+    private fun pause() {
+        if (tracker == null || paused) return
+        paused = true
+        pauseStart = SystemClock.elapsedRealtime()
+        RideState.live = RideState.live.copy(speed = 0f, status = "DIJEDA")
+        RideStore.saveDraft(this, RideState.live.ride)
+        notificationManager().notify(NOTIFICATION_ID, buildNotification())
+    }
+
+    private fun resume() {
+        if (tracker == null || !paused) return
+        pausedTotal += SystemClock.elapsedRealtime() - pauseStart
+        // Titik pembanding direset agar jarak selama jeda tidak ikut dihitung.
+        anchor = null
+        lastFix = 0L
+        paused = false
+        RideState.live = RideState.live.copy(status = "MENCARI SATELIT GPS")
+        notificationManager().notify(NOTIFICATION_ID, buildNotification())
+    }
+
     private fun onLocation(location: Location) {
         val live = RideState.live
-        if (!live.active) return
+        if (!live.active || paused) return
 
         // Abaikan titik yang tidak akurat.
         if (location.hasAccuracy() && location.accuracy > 25f) {
@@ -148,8 +183,15 @@ class RideService : Service() {
         tracker = null
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
-        RideStore.saveDraft(this, RideState.live.ride)
-        RideState.live = RideState.live.copy(active = false, speed = 0f, status = "SELESAI")
+        paused = false
+
+        val ride = RideState.live.ride
+        if (ride.points.isNotEmpty()) {
+            // Simpan rute ke riwayat.
+            RideStore.saveDraft(this, ride)
+            RideStore.recover(this)
+        }
+        RideState.live = RideState.live.copy(active = false, speed = 0f, status = "TERSIMPAN")
         stopForeground(true)
     }
 
@@ -174,8 +216,9 @@ class RideService : Service() {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
         }
+        val title = if (paused) "RideTrack dijeda" else "RideTrack merekam perjalanan"
         return builder
-            .setContentTitle("RideTrack merekam perjalanan")
+            .setContentTitle(title)
             .setContentText("Jarak %.2f km".format(RideState.live.ride.distance / 1000f))
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentIntent(openApp)
@@ -189,6 +232,20 @@ class RideService : Service() {
     companion object {
         const val ACTION_START = "com.ridetrack.app.ACTION_START"
         const val ACTION_STOP = "com.ridetrack.app.ACTION_STOP"
+        const val ACTION_PAUSE = "com.ridetrack.app.ACTION_PAUSE"
+        const val ACTION_RESUME = "com.ridetrack.app.ACTION_RESUME"
+        private const val CHANNEL_ID = "ridetrack_ride"
+        private const val NOTIFICATION_ID = 1001
+        // 120 km/jam dalam meter per detik.
+        private const val MAX_METERS_PER_SECOND = 120.0 / 3.6
+
+        // Status jeda, bisa dibaca langsung oleh layar (Compose).
+        var paused by mutableStateOf(false)
+            private set
+
+        private fun send(context: Context, action: String) {
+            context.startService(Intent(context, RideService::class.java).setAction(action))
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, RideService::class.java).setAction(ACTION_START)
@@ -199,15 +256,8 @@ class RideService : Service() {
             }
         }
 
-        fun stop(context: Context) {
-            context.startService(
-                Intent(context, RideService::class.java).setAction(ACTION_STOP)
-            )
-        }
-
-        private const val CHANNEL_ID = "ridetrack_ride"
-        private const val NOTIFICATION_ID = 1001
-        // 120 km/jam dalam meter per detik.
-        private const val MAX_METERS_PER_SECOND = 120.0 / 3.6
+        fun pause(context: Context) = send(context, ACTION_PAUSE)
+        fun resume(context: Context) = send(context, ACTION_RESUME)
+        fun stop(context: Context) = send(context, ACTION_STOP)
     }
 }
