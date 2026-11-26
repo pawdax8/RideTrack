@@ -97,7 +97,6 @@ fun HistoryScreen(onClose: () -> Unit) {
 @Composable
 fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
     var confirm by remember { mutableStateOf(false) }
-    val avgKmh = if (ride.seconds > 0) ride.distance / ride.seconds * 3.6f else 0f
 
     Column(
         Modifier
@@ -120,7 +119,11 @@ fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Stat("JARAK", formatKm(ride.distance))
             Stat("WAKTU", formatDuration(ride.seconds))
-            Stat("RATA-RATA", "%.1f km/j".format(avgKmh))
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat("RATA-RATA", formatNumber(ride.avgSpeed) + " km/j")
+            Stat("TERCEPAT", formatNumber(ride.maxSpeed) + " km/j")
         }
         Spacer(Modifier.height(16.dp))
 
