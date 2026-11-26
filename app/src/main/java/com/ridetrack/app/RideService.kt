@@ -148,6 +148,7 @@ class RideService : Service() {
         tracker = null
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        RideStore.saveDraft(this, RideState.live.ride)
         RideState.live = RideState.live.copy(active = false, speed = 0f, status = "SELESAI")
         stopForeground(true)
     }
@@ -188,6 +189,22 @@ class RideService : Service() {
     companion object {
         const val ACTION_START = "com.ridetrack.app.ACTION_START"
         const val ACTION_STOP = "com.ridetrack.app.ACTION_STOP"
+
+        fun start(context: Context) {
+            val intent = Intent(context, RideService::class.java).setAction(ACTION_START)
+            if (Build.VERSION.SDK_INT >= 26) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun stop(context: Context) {
+            context.startService(
+                Intent(context, RideService::class.java).setAction(ACTION_STOP)
+            )
+        }
+
         private const val CHANNEL_ID = "ridetrack_ride"
         private const val NOTIFICATION_ID = 1001
         // 120 km/jam dalam meter per detik.
