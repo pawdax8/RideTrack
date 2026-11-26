@@ -29,6 +29,8 @@ class RideService : Service() {
     private var lastFix = 0L
     private var pausedTotal = 0L
     private var pauseStart = 0L
+    private var smoothAlt: Double? = null
+    private var refAlt = 0.0
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -41,10 +43,15 @@ class RideService : Service() {
             val live = RideState.live
             // Kecepatan dinolkan bila sudah lama tidak ada sinyal.
             val stale = lastFix > 0 && now - lastFix > 5_000
+            // Waktu gerak: hanya detik saat kecepatan di atas 0,5 m/s dan sinyal GPS ada.
+            val moving = !stale && live.speed > 0.5f
             RideState.live = live.copy(
                 speed = if (stale) 0f else live.speed,
                 status = if (stale) "SINYAL GPS LEMAH" else live.status,
-                ride = live.ride.copy(seconds = seconds)
+                ride = live.ride.copy(
+                    seconds = seconds,
+                    movingSeconds = live.ride.movingSeconds + if (moving) 1 else 0
+                )
             )
             if (seconds % 15 == 0L) {
                 RideStore.saveDraft(this@RideService, RideState.live.ride)
@@ -85,6 +92,7 @@ class RideService : Service() {
         paused = false
         anchor = null
         lastFix = 0L
+        smoothAlt = null
         RideState.live = LiveRide(
             active = true,
             status = "MENCARI SATELIT GPS",
@@ -129,6 +137,7 @@ class RideService : Service() {
         // Titik pembanding direset agar jarak selama jeda tidak ikut dihitung.
         anchor = null
         lastFix = 0L
+        smoothAlt = null
         paused = false
         RideState.live = RideState.live.copy(status = "MENCARI SATELIT GPS")
         notificationManager().notify(NOTIFICATION_ID, buildNotification())
@@ -171,6 +180,32 @@ class RideService : Service() {
         }
 
         ride = ride.copy(maxSpeed = maxOf(ride.maxSpeed, metersPerSecond * 3.6f))
+
+        // Elevasi: altitude GPS dihaluskan, kenaikan dihitung hanya bila naik 3 m atau lebih
+        // dari titik acuan agar getaran sinyal tidak ikut terhitung.
+        if (location.hasAltitude()) {
+            val alt = location.altitude
+            val previousSmooth = smoothAlt
+            val smooth = if (previousSmooth == null) {
+                refAlt = alt
+                alt
+            } else {
+                previousSmooth * 0.8 + alt * 0.2
+            }
+            smoothAlt = smooth
+
+            var gain = ride.elevationGain
+            if (smooth > refAlt + 3.0) {
+                gain += (smooth - refAlt).toFloat()
+                refAlt = smooth
+            } else if (smooth < refAlt - 3.0) {
+                refAlt = smooth
+            }
+            ride = ride.copy(
+                elevationGain = gain,
+                maxElevation = maxOf(ride.maxElevation, smooth.toFloat())
+            )
+        }
 
         RideState.live = live.copy(
             speed = metersPerSecond,
