@@ -14,13 +14,16 @@ data class RoutePoint(val lat: Double, val lon: Double)
 data class Ride(
     val startedAt: Long = 0L,
     val seconds: Long = 0L,
+    val movingSeconds: Long = 0L,
     val distance: Float = 0f,
     val maxSpeed: Float = 0f,
+    val elevationGain: Float = 0f,
+    val maxElevation: Float = 0f,
     val points: List<RoutePoint> = emptyList()
 ) {
-    // Rata-rata dihitung dari total waktu, termasuk saat berhenti.
+    // Rata-rata hanya dihitung dari waktu saat bergerak (berhenti tidak ikut).
     val avgSpeed: Float
-        get() = if (seconds > 0) distance / seconds * 3.6f else 0f
+        get() = if (movingSeconds > 0) distance / movingSeconds * 3.6f else 0f
 }
 
 data class LiveRide(
@@ -55,8 +58,11 @@ object RideStore {
         val json = JSONObject()
             .put("startedAt", ride.startedAt)
             .put("seconds", ride.seconds)
+            .put("movingSeconds", ride.movingSeconds)
             .put("distance", ride.distance.toDouble())
             .put("maxSpeed", ride.maxSpeed.toDouble())
+            .put("elevationGain", ride.elevationGain.toDouble())
+            .put("maxElevation", ride.maxElevation.toDouble())
             .put("points", points)
 
         // Tulis ke file sementara dulu agar data tidak rusak bila aplikasi terhenti.
@@ -71,8 +77,13 @@ object RideStore {
         Ride(
             startedAt = json.getLong("startedAt"),
             seconds = json.getLong("seconds"),
+            // Perjalanan lama belum punya waktu gerak, pakai total waktu sebagai gantinya.
+            movingSeconds = json.optLong("movingSeconds", json.getLong("seconds")),
             distance = json.getDouble("distance").toFloat(),
             maxSpeed = json.getDouble("maxSpeed").toFloat(),
+            // Perjalanan lama belum punya data elevasi, jadi dibaca sebagai 0.
+            elevationGain = json.optDouble("elevationGain", 0.0).toFloat(),
+            maxElevation = json.optDouble("maxElevation", 0.0).toFloat(),
             points = List(array.length()) {
                 val point = array.getJSONArray(it)
                 RoutePoint(point.getDouble(0), point.getDouble(1))
