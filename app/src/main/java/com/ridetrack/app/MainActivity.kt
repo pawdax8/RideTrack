@@ -10,6 +10,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -101,6 +102,7 @@ fun Dashboard() {
         modifier = Modifier
             .fillMaxSize()
             .background(dark)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -209,6 +211,10 @@ fun Dashboard() {
             if (riding) "Ride session active" else "Ready to ride?",
             color = Color.Gray
         )
+
+        Spacer(Modifier.height(15.dp))
+
+        UpdateSection(riding)
     }
 }
 
