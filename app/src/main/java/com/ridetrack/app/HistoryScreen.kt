@@ -25,13 +25,6 @@ import java.util.Locale
 private fun formatDate(time: Long): String =
     SimpleDateFormat("d MMM yyyy, HH:mm", Locale("id", "ID")).format(Date(time))
 
-private fun formatDuration(totalSeconds: Long): String {
-    val h = totalSeconds / 3600
-    val m = (totalSeconds % 3600) / 60
-    val s = totalSeconds % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
-}
-
 // Jarak diasumsikan dalam meter.
 private fun formatKm(meters: Float): String = "%.2f km".format(meters / 1000f)
 
