@@ -128,4 +128,69 @@ class RideService : Service() {
                 // Lompatan yang mustahil untuk sepeda (di atas 120 km/jam) tidak dihitung.
                 if (moved / elapsed <= MAX_METERS_PER_SECOND) {
                     ride = ride.copy(
-                        distance = ride.distance +
+                        distance = ride.distance + moved,
+                        points = ride.points + location.toPoint()
+                    )
+                }
+            }
+        }
+
+        RideState.live = live.copy(
+            speed = metersPerSecond,
+            status = "MEREKAM",
+            ride = ride
+        )
+    }
+
+    private fun end() {
+        handler.removeCallbacks(ticker)
+        tracker?.stop()
+        tracker = null
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        RideState.live = RideState.live.copy(active = false, speed = 0f, status = "SELESAI")
+        stopForeground(true)
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(ticker)
+        wakeLock?.let { if (it.isHeld) it.release() }
+        super.onDestroy()
+    }
+
+    private fun notificationManager(): NotificationManager =
+        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    private fun buildNotification(): Notification {
+        val openApp = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = if (Build.VERSION.SDK_INT >= 26) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        return builder
+            .setContentTitle("RideTrack merekam perjalanan")
+            .setContentText("Jarak %.2f km".format(RideState.live.ride.distance / 1000f))
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentIntent(openApp)
+            .setOngoing(true)
+            .build()
+    }
+
+    // Sesuaikan jika kelas titik rute kamu bernama lain.
+    private fun Location.toPoint() = RoutePoint(latitude, longitude)
+
+    companion object {
+        const val ACTION_START = "com.ridetrack.app.ACTION_START"
+        const val ACTION_STOP = "com.ridetrack.app.ACTION_STOP"
+        private const val CHANNEL_ID = "ridetrack_ride"
+        private const val NOTIFICATION_ID = 1001
+        // 120 km/jam dalam meter per detik.
+        private const val MAX_METERS_PER_SECOND = 120.0 / 3.6
+    }
+}
