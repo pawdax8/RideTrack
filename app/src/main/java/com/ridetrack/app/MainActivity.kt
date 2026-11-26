@@ -1,4 +1,3 @@
-
 package com.ridetrack.app
 
 import android.Manifest
@@ -35,6 +34,13 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+private fun clock(totalSeconds: Long): String {
+    val h = totalSeconds / 3600
+    val m = (totalSeconds % 3600) / 60
+    val s = totalSeconds % 60
+    return "%02d:%02d:%02d".format(h, m, s)
 }
 
 @Composable
@@ -76,4 +82,99 @@ fun Dashboard(onHistory: () -> Unit) {
             fontWeight = FontWeight.Bold
         )
 
-        Text("CYCLING TRACKER", color =
+        Text("CYCLING TRACKER", color = Color.Gray, fontSize = 12.sp)
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            if (live.status.isNotEmpty()) live.status else if (riding) "MEREKAM" else "SIAP",
+            color = Color.Gray,
+            fontSize = 12.sp
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            "%.1f".format(live.speed * 3.6f),
+            color = Color.White,
+            fontSize = 88.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text("KM/JAM", color = Color.Gray, fontSize = 14.sp)
+
+        Spacer(Modifier.height(24.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("JARAK", color = Color.Gray, fontSize = 11.sp)
+                Text(
+                    "%.2f km".format(ride.distance / 1000f),
+                    color = orange,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("WAKTU", color = Color.Gray, fontSize = 11.sp)
+                Text(
+                    clock(ride.seconds),
+                    color = orange,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        if (riding) {
+            RouteMap(
+                points = ride.points,
+                follow = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+            )
+            Spacer(Modifier.height(24.dp))
+        }
+
+        Button(
+            onClick = {
+                if (riding) {
+                    RideService.stop(context)
+                } else {
+                    val permissions = mutableListOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    permissionLauncher.launch(permissions.toTypedArray())
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (riding) Color(0xFFD32F2F) else orange
+            )
+        ) {
+            Text(
+                if (riding) "SELESAI" else "MULAI",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        TextButton(onClick = onHistory) {
+            Text("RIWAYAT", color = orange)
+        }
+    }
+}
