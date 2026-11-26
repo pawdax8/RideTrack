@@ -1,8 +1,7 @@
 package com.ridetrack.app
 
 import android.Manifest
-import android.content.pm.PackageManager
-import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,87 +20,55 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!RideState.live.active) RideStore.recover(this)
         setContent {
-            Dashboard()
+            var showHistory by remember { mutableStateOf(false) }
+            if (showHistory) {
+                HistoryScreen(onClose = { showHistory = false })
+            } else {
+                Dashboard(onHistory = { showHistory = true })
+            }
         }
     }
 }
 
+private fun clock(totalSeconds: Long): String {
+    val h = totalSeconds / 3600
+    val m = (totalSeconds % 3600) / 60
+    val s = totalSeconds % 60
+    return "%02d:%02d:%02d".format(h, m, s)
+}
+
 @Composable
-fun Dashboard() {
+fun Dashboard(onHistory: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val orange = Color(0xFFFF6B00)
     val dark = Color(0xFF101010)
 
-    var riding by remember { mutableStateOf(false) }
-    var speed by remember { mutableFloatStateOf(0f) }
-    var distance by remember { mutableFloatStateOf(0f) }
-    var seconds by remember { mutableIntStateOf(0) }
-    var lastLocation by remember { mutableStateOf<Location?>(null) }
-    var gpsStatus by remember { mutableStateOf("GPS SIAP") }
-
-    val tracker = remember {
-        GpsTracker(context) { location ->
-            lastLocation?.let { previous ->
-                val moved = previous.distanceTo(location)
-                if (moved in 1f..100f) {
-                    distance += moved
-                }
-            }
-            lastLocation = location
-
-            speed = if (location.hasSpeed()) {
-                location.speed * 3.6f
-            } else {
-                0f
-            }
-            gpsStatus = "GPS AKTIF"
-        }
-    }
+    val live = RideState.live
+    val ride = live.ride
+    val riding = live.active
 
     val permissionLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissions ->
-
-            val granted = permissions.values.any { it }
-
-            if (granted) {
-                distance = 0f
-                speed = 0f
-                seconds = 0
-                lastLocation = null
-                riding = true
-                tracker.start()
-                gpsStatus = "MENCARI SATELIT GPS"
+            if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+                RideService.start(context)
             } else {
-                gpsStatus = "IZIN GPS DITOLAK"
+                RideState.live = LiveRide(status = "AKTIFKAN IZIN LOKASI AKURAT")
             }
         }
-
-    LaunchedEffect(riding) {
-        while (riding) {
-            delay(1000)
-            seconds++
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            tracker.stop()
-        }
-    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(dark)
+            .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -115,128 +82,99 @@ fun Dashboard() {
             fontWeight = FontWeight.Bold
         )
 
-        Text("CYCLING TRACKER", color = Color.Gray)
+        Text("CYCLING TRACKER", color = Color.Gray, fontSize = 12.sp)
 
-        Spacer(Modifier.height(35.dp))
-
-        Text("CURRENT SPEED", color = Color.Gray)
+        Spacer(Modifier.height(8.dp))
 
         Text(
-            String.format(Locale.US, "%.1f", speed),
-            color = Color.White,
-            fontSize = 76.sp,
-            fontWeight = FontWeight.Bold
+            if (live.status.isNotEmpty()) live.status else if (riding) "MEREKAM" else "SIAP",
+            color = Color.Gray,
+            fontSize = 12.sp
         )
 
-        Text("KM/H", color = orange)
+        Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(30.dp))
+        Text(
+            "%.1f".format(live.speed * 3.6f),
+            color = Color.White,
+            fontSize = 88.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text("KM/JAM", color = Color.Gray, fontSize = 14.sp)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(
-                "DISTANCE",
-                String.format(Locale.US, "%.2f", distance / 1000f),
-                "KM"
-            )
+        Spacer(Modifier.height(24.dp))
 
-            StatCard(
-                "DURATION",
-                String.format(
-                    Locale.US,
-                    "%02d:%02d",
-                    seconds / 60,
-                    seconds % 60
-                ),
-                "MIN"
-            )
-        }
-
-        Spacer(Modifier.height(30.dp))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(150.dp)
-                .background(
-                    Color(0xFF252525),
-                    RoundedCornerShape(18.dp)
-                ),
-            contentAlignment = Alignment.Center
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            Text(
-                gpsStatus,
-                color = Color.LightGray
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("JARAK", color = Color.Gray, fontSize = 11.sp)
+                Text(
+                    "%.2f km".format(ride.distance / 1000f),
+                    color = orange,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("WAKTU", color = Color.Gray, fontSize = 11.sp)
+                Text(
+                    clock(ride.seconds),
+                    color = orange,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(24.dp))
+
+        if (riding) {
+            RouteMap(
+                points = ride.points,
+                follow = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+            )
+            Spacer(Modifier.height(24.dp))
+        }
 
         Button(
             onClick = {
                 if (riding) {
-                    tracker.stop()
-                    riding = false
-                    speed = 0f
-                    gpsStatus = "PERJALANAN SELESAI"
+                    RideService.stop(context)
                 } else {
-                    permissionLauncher.launch(
-                        arrayOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        )
+                    val permissions = mutableListOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
                     )
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    permissionLauncher.launch(permissions.toTypedArray())
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(60.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (riding) {
-                    Color(0xFFD32F2F)
-                } else {
-                    orange
-                }
+                containerColor = if (riding) Color(0xFFD32F2F) else orange
             )
         ) {
             Text(
-                if (riding) "STOP RIDE" else "START RIDE",
+                if (riding) "SELESAI" else "MULAI",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        Spacer(Modifier.height(15.dp))
+        Spacer(Modifier.height(12.dp))
 
-        Text(
-            if (riding) "Ride session active" else "Ready to ride?",
-            color = Color.Gray
-        )
-
-        Spacer(Modifier.height(15.dp))
-
-        UpdateSection(riding)
-    }
-}
-
-@Composable
-fun StatCard(title: String, value: String, unit: String) {
-    Column(
-        modifier = Modifier
-            .width(145.dp)
-            .background(
-                Color(0xFF252525),
-                RoundedCornerShape(15.dp)
-            )
-            .padding(18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(title, color = Color.Gray, fontSize = 11.sp)
-        Text(
-            value,
-            color = Color.White,
-            fontSize = 27.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(unit, color = Color(0xFFFF6B00), fontSize = 11.sp)
+        TextButton(onClick = onHistory) {
+            Text("RIWAYAT", color = orange)
+        }
     }
 }

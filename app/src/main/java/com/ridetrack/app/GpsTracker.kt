@@ -1,3 +1,4 @@
+
 package com.ridetrack.app
 
 import android.annotation.SuppressLint
@@ -22,9 +23,8 @@ class GpsTracker(
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
-            result.lastLocation?.let { location ->
-                onUpdate(location)
-            }
+            // Proses semua titik, karena saat layar mati titik bisa datang berkelompok.
+            result.locations.forEach(onUpdate)
         }
     }
 
