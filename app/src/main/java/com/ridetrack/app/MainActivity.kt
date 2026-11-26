@@ -130,6 +130,26 @@ fun Dashboard(onHistory: () -> Unit) {
 
         Spacer(Modifier.height(24.dp))
 
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Metric("RATA-RATA", formatNumber(ride.avgSpeed) + " km/j", orange)
+            Metric("TERCEPAT", formatNumber(ride.maxSpeed) + " km/j", orange)
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Metric("KENAIKAN", formatNumber(ride.elevationGain, 0) + " m", orange)
+            Metric("ELEVASI MAKS", formatNumber(ride.maxElevation, 0) + " m", orange)
+        }
+
+        Spacer(Modifier.height(24.dp))
+
         if (riding) {
             RouteMap(
                 points = ride.points,
@@ -201,5 +221,13 @@ fun Dashboard(onHistory: () -> Unit) {
         TextButton(onClick = onHistory) {
             Text("RIWAYAT", color = orange)
         }
+    }
+}
+
+@Composable
+private fun Metric(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = Color.Gray, fontSize = 11.sp)
+        Text(value, color = color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
