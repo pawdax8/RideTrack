@@ -97,7 +97,7 @@ fun Dashboard(onHistory: () -> Unit) {
         Text(
             "%.1f".format(live.speed * 3.6f),
             color = Color.White,
-            fontSize = 88.sp,
+            fontSize = 72.sp,
             fontWeight = FontWeight.Bold
         )
         Text("KM/JAM", color = Color.Gray, fontSize = 14.sp)
@@ -141,11 +141,9 @@ fun Dashboard(onHistory: () -> Unit) {
             Spacer(Modifier.height(24.dp))
         }
 
-        Button(
-            onClick = {
-                if (riding) {
-                    RideService.stop(context)
-                } else {
+        if (!riding) {
+            Button(
+                onClick = {
                     val permissions = mutableListOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION
@@ -154,21 +152,48 @@ fun Dashboard(onHistory: () -> Unit) {
                         permissions.add(Manifest.permission.POST_NOTIFICATIONS)
                     }
                     permissionLauncher.launch(permissions.toTypedArray())
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = orange)
+            ) {
+                Text("GO", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            val paused = RideService.paused
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (paused) RideService.resume(context) else RideService.pause(context)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = orange)
+                ) {
+                    Text(
+                        if (paused) "LANJUT" else "JEDA",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (riding) Color(0xFFD32F2F) else orange
-            )
-        ) {
-            Text(
-                if (riding) "SELESAI" else "MULAI",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+                Button(
+                    onClick = { RideService.stop(context) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                ) {
+                    Text("STOP", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         Spacer(Modifier.height(12.dp))
