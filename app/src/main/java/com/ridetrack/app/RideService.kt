@@ -170,6 +170,8 @@ class RideService : Service() {
             }
         }
 
+        ride = ride.copy(maxSpeed = maxOf(ride.maxSpeed, metersPerSecond * 3.6f))
+
         RideState.live = live.copy(
             speed = metersPerSecond,
             status = "MEREKAM",
@@ -185,13 +187,13 @@ class RideService : Service() {
         wakeLock = null
         paused = false
 
-        val ride = RideState.live.ride
-        if (ride.points.isNotEmpty()) {
-            // Simpan rute ke riwayat.
-            RideStore.saveDraft(this, ride)
-            RideStore.recover(this)
-        }
-        RideState.live = RideState.live.copy(active = false, speed = 0f, status = "TERSIMPAN")
+        // Simpan rute ke riwayat (perjalanan yang terlalu singkat dilewati oleh RideStore).
+        val saved = RideStore.finish(this, RideState.live.ride)
+        RideState.live = RideState.live.copy(
+            active = false,
+            speed = 0f,
+            status = if (saved) "TERSIMPAN" else "TIDAK DISIMPAN (TERLALU SINGKAT)"
+        )
         stopForeground(true)
     }
 
