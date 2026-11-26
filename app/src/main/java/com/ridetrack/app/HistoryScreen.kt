@@ -125,6 +125,11 @@ fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
             Stat("RATA-RATA", formatNumber(ride.avgSpeed) + " km/j")
             Stat("TERCEPAT", formatNumber(ride.maxSpeed) + " km/j")
         }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat("KENAIKAN", formatNumber(ride.elevationGain, 0) + " m")
+            Stat("ELEVASI MAKS", formatNumber(ride.maxElevation, 0) + " m")
+        }
         Spacer(Modifier.height(16.dp))
 
         RouteMap(
