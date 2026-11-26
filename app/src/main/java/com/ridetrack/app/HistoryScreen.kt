@@ -85,7 +85,21 @@ fun HistoryScreen(onClose: () -> Unit) {
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "${formatKm(item.distance)}  •  ${formatDuration(item.seconds)}",
-                            color = Color(0xFFFF6B00)
+                            color = Color(0xFFFF6B00),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Rata-rata ${formatNumber(item.avgSpeed)} km/j  •  " +
+                                "Tercepat ${formatNumber(item.maxSpeed)} km/j",
+                            color = Color.Gray,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            "Naik ${formatNumber(item.elevationGain, 0)} m  •  " +
+                                "Maks ${formatNumber(item.maxElevation, 0)} m",
+                            color = Color.Gray,
+                            fontSize = 13.sp
                         )
                     }
                 }
@@ -118,17 +132,22 @@ fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Stat("JARAK", formatKm(ride.distance))
-            Stat("WAKTU", formatDuration(ride.seconds))
+            Stat("WAKTU TOTAL", formatDuration(ride.seconds))
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat("WAKTU GERAK", formatDuration(ride.movingSeconds))
             Stat("RATA-RATA", formatNumber(ride.avgSpeed) + " km/j")
-            Stat("TERCEPAT", formatNumber(ride.maxSpeed) + " km/j")
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat("TERCEPAT", formatNumber(ride.maxSpeed) + " km/j")
             Stat("KENAIKAN", formatNumber(ride.elevationGain, 0) + " m")
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Stat("ELEVASI MAKS", formatNumber(ride.maxElevation, 0) + " m")
+            Stat("TITIK RUTE", ride.points.size.toString())
         }
         Spacer(Modifier.height(16.dp))
 
