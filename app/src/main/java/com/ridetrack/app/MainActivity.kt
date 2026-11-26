@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +53,38 @@ fun Dashboard(onHistory: () -> Unit) {
     val live = RideState.live
     val ride = live.ride
     val riding = live.active
+
+    // Cuaca: minta izin lokasi, lalu muat dan perbarui tiap 10 menit.
+    var permissionTick by remember { mutableIntStateOf(0) }
+    val weatherPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissionTick++ }
+
+    LaunchedEffect(Unit) {
+        WeatherStore.loadCache(context)
+        if (!hasLocationPermission(context)) {
+            weatherPermission.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    LaunchedEffect(permissionTick) {
+        while (true) {
+            val position = weatherLocation(context)
+            if (position != null) {
+                WeatherStore.refresh(context, position.first, position.second)
+                delay(10 * 60 * 1000L)
+            } else {
+                if (WeatherStore.info == null) WeatherStore.failed = true
+                // Belum ada lokasi (GPS belum terkunci), coba lagi sebentar lagi.
+                delay(15_000L)
+            }
+        }
+    }
 
     val permissionLauncher =
         rememberLauncherForActivityResult(
@@ -221,6 +254,10 @@ fun Dashboard(onHistory: () -> Unit) {
         TextButton(onClick = onHistory) {
             Text("RIWAYAT", color = orange)
         }
+
+        Spacer(Modifier.height(12.dp))
+
+        WeatherCard()
     }
 }
 
