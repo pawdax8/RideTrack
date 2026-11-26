@@ -25,6 +25,16 @@ import java.util.Locale
 private fun formatDate(time: Long): String =
     SimpleDateFormat("d MMM yyyy, HH:mm", Locale("id", "ID")).format(Date(time))
 
+private fun formatDuration(totalSeconds: Long): String {
+    val h = totalSeconds / 3600
+    val m = (totalSeconds % 3600) / 60
+    val s = totalSeconds % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
+}
+
+// Jarak diasumsikan dalam meter.
+private fun formatKm(meters: Float): String = "%.2f km".format(meters / 1000f)
+
 @Composable
 fun HistoryScreen(onClose: () -> Unit) {
     val context = LocalContext.current
@@ -67,4 +77,88 @@ fun HistoryScreen(onClose: () -> Unit) {
 
         val list = rides
         when {
-            list == null -> Text("Memuat...", col
+            list == null -> Text("Memuat...", color = Color.Gray)
+            list.isEmpty() -> Text("Belum ada perjalanan.", color = Color.Gray)
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(list) { item ->
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1C1C1C), RoundedCornerShape(12.dp))
+                            .clickable { selected = item }
+                            .padding(16.dp)
+                    ) {
+                        Text(formatDate(item.startedAt), color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${formatKm(item.distance)}  •  ${formatDuration(item.seconds)}",
+                            color = Color(0xFFFF6B00)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
+    var confirm by remember { mutableStateOf(false) }
+    val avgKmh = if (ride.seconds > 0) ride.distance / ride.seconds * 3.6f else 0f
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF101010))
+            .systemBarsPadding()
+            .padding(20.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onBack) { Text("← KEMBALI") }
+            TextButton(onClick = { confirm = true }) { Text("HAPUS", color = Color(0xFFFF5252)) }
+        }
+        Text(formatDate(ride.startedAt), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat("JARAK", formatKm(ride.distance))
+            Stat("WAKTU", formatDuration(ride.seconds))
+            Stat("RATA-RATA", "%.1f km/j".format(avgKmh))
+        }
+        Spacer(Modifier.height(16.dp))
+
+        RouteMap(
+            points = ride.points,
+            follow = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        )
+    }
+
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("Hapus perjalanan?") },
+            text = { Text("Data perjalanan ini akan dihapus permanen.") },
+            confirmButton = {
+                TextButton(onClick = { confirm = false; onDelete() }) { Text("HAPUS") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirm = false }) { Text("BATAL") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun Stat(label: String, value: String) {
+    Column {
+        Text(label, color = Color.Gray, fontSize = 11.sp)
+        Text(value, color = Color(0xFFFF6B00), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    }
+}
