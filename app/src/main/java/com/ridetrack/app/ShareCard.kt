@@ -22,85 +22,124 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 
-// Kartu ringkasan perjalanan (gambar PNG) untuk dibagikan, mirip kartu Strava.
-// Rute digambar langsung dari data GPS, jadi tidak butuh internet.
+// Tiga model kartu bagikan. Latar belakangnya transparan (PNG) supaya bisa ditempel di foto.
+enum class CardStyle(val label: String, val width: Int, val height: Int) {
+    ROUTE("RUTE", 1080, 1350),
+    STRIP("RINGKAS", 1080, 560),
+    STATS("STATISTIK", 1080, 1350)
+}
+
 object ShareCard {
-    private const val W = 1080
-    private const val H = 1400
     private val ORANGE = Color.rgb(255, 107, 0)
-    private val GRAY = Color.rgb(150, 150, 150)
+    private val YELLOW = Color.rgb(255, 214, 0)
+    private val WHITE = Color.WHITE
+    private val SOFT = Color.argb(215, 255, 255, 255)
 
-    fun render(ride: Ride): Bitmap {
-        val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+    // scale < 1 dipakai untuk gambar pratinjau yang lebih kecil.
+    fun render(ride: Ride, style: CardStyle, scale: Float = 1f): Bitmap {
+        val bitmap = Bitmap.createBitmap(
+            (style.width * scale).toInt(),
+            (style.height * scale).toInt(),
+            Bitmap.Config.ARGB_8888
+        )
         val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.rgb(16, 16, 16))
-
-        val text = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        // Judul dan tanggal
-        text.color = ORANGE
-        text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = 46f
-        text.letterSpacing = 0.15f
-        canvas.drawText("RIDETRACK", 80f, 120f, text)
-
-        text.color = GRAY
-        text.typeface = Typeface.DEFAULT
-        text.textSize = 34f
-        text.letterSpacing = 0f
-        val date = SimpleDateFormat("d MMMM yyyy, HH:mm", Locale("id", "ID"))
-            .format(Date(ride.startedAt))
-        canvas.drawText(date, 80f, 175f, text)
-
-        // Rute
-        drawRoute(canvas, ride.points, RectF(80f, 240f, W - 80f, 840f))
-
-        // Jarak (angka besar)
-        text.color = GRAY
-        text.textSize = 30f
-        text.letterSpacing = 0.1f
-        canvas.drawText("JARAK", 80f, 905f, text)
-
-        val distance = formatNumber(ride.distance / 1000f, 2)
-        text.color = Color.WHITE
-        text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = 150f
-        text.letterSpacing = 0f
-        canvas.drawText(distance, 80f, 1030f, text)
-        val distanceWidth = text.measureText(distance)
-
-        text.color = ORANGE
-        text.textSize = 56f
-        canvas.drawText("km", 80f + distanceWidth + 16f, 1030f, text)
-
-        // Statistik lain
-        val moving = if (ride.movingSeconds > 0) ride.movingSeconds else ride.seconds
-        val columns = floatArrayOf(80f, 400f, 720f)
-        stat(canvas, text, columns[0], 1130f, "WAKTU GERAK", formatDuration(moving))
-        stat(canvas, text, columns[1], 1130f, "RATA-RATA KM/J", formatNumber(ride.avgSpeed))
-        stat(canvas, text, columns[2], 1130f, "TERCEPAT KM/J", formatNumber(ride.maxSpeed))
-        stat(canvas, text, columns[0], 1260f, "NAIK (M)", formatNumber(ride.elevationGain, 0))
-        stat(canvas, text, columns[1], 1260f, "ELEVASI MAKS (M)", formatNumber(ride.maxElevation, 0))
-        stat(canvas, text, columns[2], 1260f, "WAKTU TOTAL", formatDuration(ride.seconds))
-
+        canvas.scale(scale, scale)
+        when (style) {
+            CardStyle.ROUTE -> drawRouteCard(canvas, ride)
+            CardStyle.STRIP -> drawStripCard(canvas, ride)
+            CardStyle.STATS -> drawStatsCard(canvas, ride)
+        }
         return bitmap
     }
 
-    private fun stat(canvas: Canvas, text: Paint, x: Float, y: Float, label: String, value: String) {
-        text.color = GRAY
-        text.typeface = Typeface.DEFAULT
-        text.textSize = 26f
-        text.letterSpacing = 0.08f
-        canvas.drawText(label, x, y, text)
+    private fun date(ride: Ride): String =
+        SimpleDateFormat("d MMMM yyyy, HH:mm", Locale("id", "ID")).format(Date(ride.startedAt))
 
-        text.color = Color.WHITE
-        text.typeface = Typeface.DEFAULT_BOLD
-        text.textSize = 54f
-        text.letterSpacing = 0f
-        canvas.drawText(value, x, y + 66f, text)
+    private fun movingSeconds(ride: Ride) =
+        if (ride.movingSeconds > 0) ride.movingSeconds else ride.seconds
+
+    // Model 1: rute besar, jarak besar, enam statistik di bawah.
+    private fun drawRouteCard(canvas: Canvas, ride: Ride) {
+        label(canvas, "RIDETRACK", 80f, 110f, 44f, ORANGE, bold = true, spacing = 0.15f)
+        label(canvas, date(ride), 80f, 162f, 32f, SOFT)
+
+        drawRoute(canvas, ride.points, RectF(80f, 220f, 1000f, 860f), ORANGE)
+
+        label(canvas, "JARAK", 80f, 925f, 30f, SOFT, spacing = 0.1f)
+        val distance = formatNumber(ride.distance / 1000f, 2)
+        val width = label(canvas, distance, 80f, 1050f, 160f, WHITE, bold = true)
+        label(canvas, "km", 80f + width + 16f, 1050f, 56f, ORANGE, bold = true)
+
+        val x = floatArrayOf(80f, 400f, 720f)
+        stat(canvas, x[0], 1130f, "WAKTU GERAK", formatDuration(movingSeconds(ride)), 26f, 54f)
+        stat(canvas, x[1], 1130f, "RATA-RATA KM/J", formatNumber(ride.avgSpeed), 26f, 54f)
+        stat(canvas, x[2], 1130f, "TERCEPAT KM/J", formatNumber(ride.maxSpeed), 26f, 54f)
+        stat(canvas, x[0], 1245f, "NAIK (M)", formatNumber(ride.elevationGain, 0), 26f, 54f)
+        stat(canvas, x[1], 1245f, "ELEVASI MAKS (M)", formatNumber(ride.maxElevation, 0), 26f, 54f)
+        stat(canvas, x[2], 1245f, "WAKTU TOTAL", formatDuration(ride.seconds), 26f, 54f)
     }
 
-    private fun drawRoute(canvas: Canvas, points: List<RoutePoint>, area: RectF) {
+    // Model 2: strip pendek, cocok ditaruh di bagian bawah foto.
+    private fun drawStripCard(canvas: Canvas, ride: Ride) {
+        drawRoute(canvas, ride.points, RectF(40f, 50f, 470f, 510f), WHITE)
+
+        label(canvas, "RIDETRACK", 540f, 80f, 30f, ORANGE, bold = true, spacing = 0.15f)
+        label(canvas, date(ride), 540f, 120f, 26f, SOFT)
+
+        val distance = formatNumber(ride.distance / 1000f, 2)
+        val width = label(canvas, distance, 540f, 290f, 150f, WHITE, bold = true)
+        label(canvas, "km", 540f + width + 14f, 290f, 52f, ORANGE, bold = true)
+
+        stat(canvas, 540f, 380f, "WAKTU", formatDuration(movingSeconds(ride)), 20f, 38f)
+        stat(canvas, 740f, 380f, "RATA-RATA KM/J", formatNumber(ride.avgSpeed), 20f, 38f)
+        stat(canvas, 920f, 380f, "NAIK (M)", formatNumber(ride.elevationGain, 0), 20f, 38f)
+    }
+
+    // Model 3: daftar statistik di kiri, rute di kanan.
+    private fun drawStatsCard(canvas: Canvas, ride: Ride) {
+        val items = listOf(
+            "JARAK (KM)" to formatNumber(ride.distance / 1000f, 2),
+            "WAKTU GERAK" to formatDuration(movingSeconds(ride)),
+            "RATA-RATA (KM/J)" to formatNumber(ride.avgSpeed),
+            "TERCEPAT (KM/J)" to formatNumber(ride.maxSpeed),
+            "KENAIKAN (M)" to formatNumber(ride.elevationGain, 0),
+            "ELEVASI MAKS (M)" to formatNumber(ride.maxElevation, 0)
+        )
+        items.forEachIndexed { index, (name, value) ->
+            stat(canvas, 80f, 130f + index * 190f, name, value, 28f, 84f)
+        }
+
+        drawRoute(canvas, ride.points, RectF(560f, 200f, 1000f, 1100f), YELLOW)
+
+        label(canvas, "RIDETRACK", 80f, 1290f, 40f, ORANGE, bold = true, spacing = 0.15f)
+        label(canvas, date(ride), 560f, 1290f, 28f, SOFT)
+    }
+
+    private fun stat(
+        canvas: Canvas, x: Float, y: Float, name: String, value: String,
+        nameSize: Float, valueSize: Float
+    ) {
+        label(canvas, name, x, y, nameSize, SOFT, spacing = 0.08f)
+        label(canvas, value, x, y + valueSize * 1.2f, valueSize, WHITE, bold = true)
+    }
+
+    // Teks putih dengan bayangan tipis agar tetap terbaca di atas foto terang. Mengembalikan lebar teks.
+    private fun label(
+        canvas: Canvas, text: String, x: Float, y: Float, size: Float, color: Int,
+        bold: Boolean = false, spacing: Float = 0f
+    ): Float {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            textSize = size
+            letterSpacing = spacing
+            setShadowLayer(8f, 0f, 3f, Color.argb(170, 0, 0, 0))
+        }
+        canvas.drawText(text, x, y, paint)
+        return paint.measureText(text)
+    }
+
+    private fun drawRoute(canvas: Canvas, points: List<RoutePoint>, area: RectF, accent: Int) {
         if (points.isEmpty()) return
 
         // Titik terlalu banyak tidak perlu semuanya digambar.
@@ -133,11 +172,11 @@ object ShareCard {
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
-        // Lapisan cahaya lembut di belakang garis utama
-        line.color = Color.argb(70, 255, 107, 0)
-        line.strokeWidth = 28f
+        // Garis gelap tipis di belakang agar rute tetap jelas di foto terang maupun gelap.
+        line.color = Color.argb(110, 0, 0, 0)
+        line.strokeWidth = 24f
         canvas.drawPath(path, line)
-        line.color = ORANGE
+        line.color = accent
         line.strokeWidth = 12f
         canvas.drawPath(path, line)
 
@@ -156,15 +195,18 @@ object ShareCard {
 
     // Menyimpan ke galeri (Pictures/RideTrack) lalu membuka menu bagikan.
     // Mengembalikan false bila gagal (atau Android di bawah 10).
-    suspend fun share(context: Context, ride: Ride): Boolean {
+    suspend fun share(context: Context, ride: Ride, style: CardStyle): Boolean {
         if (Build.VERSION.SDK_INT < 29) return false
 
         val uri = withContext(Dispatchers.IO) {
             runCatching {
-                val bitmap = render(ride)
+                val bitmap = render(ride, style)
                 val resolver = context.contentResolver
                 val values = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, "RideTrack_${ride.startedAt}.png")
+                    put(
+                        MediaStore.Images.Media.DISPLAY_NAME,
+                        "RideTrack_${ride.startedAt}_${style.name.lowercase()}.png"
+                    )
                     put(MediaStore.Images.Media.MIME_TYPE, "image/png")
                     put(
                         MediaStore.Images.Media.RELATIVE_PATH,
