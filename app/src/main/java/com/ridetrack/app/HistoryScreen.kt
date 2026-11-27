@@ -17,7 +17,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -110,6 +112,8 @@ fun HistoryScreen(onClose: () -> Unit) {
 
 @Composable
 fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var confirm by remember { mutableStateOf(false) }
 
     Column(
@@ -125,7 +129,21 @@ fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(onClick = onBack) { Text("← KEMBALI") }
-            TextButton(onClick = { confirm = true }) { Text("HAPUS", color = Color(0xFFFF5252)) }
+            Row {
+                TextButton(onClick = {
+                    scope.launch {
+                        val ok = ShareCard.share(context, ride)
+                        if (!ok) {
+                            Toast.makeText(
+                                context,
+                                "Gagal membuat kartu (butuh Android 10 atau lebih baru)",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }) { Text("BAGIKAN", color = Color(0xFFFF6B00)) }
+                TextButton(onClick = { confirm = true }) { Text("HAPUS", color = Color(0xFFFF5252)) }
+            }
         }
         Text(formatDate(ride.startedAt), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
