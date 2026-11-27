@@ -1,7 +1,10 @@
 package com.ridetrack.app
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -115,6 +120,7 @@ fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var confirm by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -130,18 +136,7 @@ fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
         ) {
             TextButton(onClick = onBack) { Text("← KEMBALI") }
             Row {
-                TextButton(onClick = {
-                    scope.launch {
-                        val ok = ShareCard.share(context, ride)
-                        if (!ok) {
-                            Toast.makeText(
-                                context,
-                                "Gagal membuat kartu (butuh Android 10 atau lebih baru)",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                }) { Text("BAGIKAN", color = Color(0xFFFF6B00)) }
+                TextButton(onClick = { picking = true }) { Text("BAGIKAN", color = Color(0xFFFF6B00)) }
                 TextButton(onClick = { confirm = true }) { Text("HAPUS", color = Color(0xFFFF5252)) }
             }
         }
@@ -175,6 +170,68 @@ fun RideDetail(ride: Ride, onBack: () -> Unit, onDelete: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+        )
+    }
+
+    if (picking) {
+        var previews by remember { mutableStateOf<List<ImageBitmap>?>(null) }
+        LaunchedEffect(Unit) {
+            previews = withContext(Dispatchers.Default) {
+                CardStyle.values().map { ShareCard.render(ride, it, 0.3f).asImageBitmap() }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { picking = false },
+            title = { Text("Pilih kartu") },
+            text = {
+                val list = previews
+                if (list == null) {
+                    Text("Membuat pratinjau...")
+                } else {
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CardStyle.values().forEachIndexed { index, style ->
+                            Column(
+                                Modifier.clickable {
+                                    picking = false
+                                    scope.launch {
+                                        val ok = ShareCard.share(context, ride, style)
+                                        if (!ok) {
+                                            Toast.makeText(
+                                                context,
+                                                "Gagal membuat kartu (butuh Android 10 atau lebih baru)",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    Modifier
+                                        .background(Color(0xFF5B6B7B), RoundedCornerShape(8.dp))
+                                        .padding(6.dp)
+                                ) {
+                                    Image(
+                                        bitmap = list[index],
+                                        contentDescription = style.label,
+                                        modifier = Modifier
+                                            .height(200.dp)
+                                            .aspectRatio(list[index].width.toFloat() / list[index].height)
+                                    )
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text(style.label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { picking = false }) { Text("BATAL") }
+            }
         )
     }
 
