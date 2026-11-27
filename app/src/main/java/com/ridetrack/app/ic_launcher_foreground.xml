@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Roda -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF6B00"
+        android:strokeWidth="7"
+        android:pathData="M54,28 A26,26 0 1,0 54.01,28 Z" />
+
+    <!-- Rute -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M34,70 C42,50 52,74 60,54 S74,40 80,38" />
+
+    <!-- Titik awal (hijau) -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M34,70 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
+
+    <!-- Titik akhir (merah) -->
+    <path
+        android:fillColor="#F44336"
+        android:pathData="M80,38 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
+</vector>
